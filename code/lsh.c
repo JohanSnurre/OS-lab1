@@ -24,6 +24,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+// included for SIGCHLD
+#include <signal.h>
+
 // The <unistd.h> header is your gateway to the OS's process management facilities.
 #include <unistd.h>
 
@@ -33,6 +36,8 @@ static void run_cmds(Command *);
 static void print_cmd(Command *cmd);
 static void print_pgm(Pgm *p);
 void stripwhite(char *);
+
+void child_handler(int sig);
 
 int main(void)
 {
@@ -49,6 +54,8 @@ int main(void)
     strcat(cwd,login);
     strcat(cwd,prompt);
     line = readline(cwd);
+
+    signal(SIGCHLD, child_handler);
 
     // If EOF encountered, exit shell
     if (!line)
@@ -126,14 +133,19 @@ static void run_cmds(Command *cmd_list)
   //parent process
   else{
 
+    //if background command
+    if(cmd_list->background == 0){
 
-    //waiting for child
-    if(waitpid(pid, &status, 0) > 0){
+      //waiting for child
+      if(waitpid(pid, &status, 0) > 0){
 
-      printf("Child finished");
+        printf("Child finished");
 
+
+      }
 
     }
+    
 
   }
 
@@ -213,4 +225,16 @@ void stripwhite(char *string)
   }
 
   string[++i] = '\0';
+}
+
+
+void child_handler(int sig){
+
+  int pid;
+  int status;
+
+  while((pid = waitpid(-1, &status, WNOHANG)) > 0){
+    printf("Child has died with pid: %d\n", pid);
+  }
+
 }
