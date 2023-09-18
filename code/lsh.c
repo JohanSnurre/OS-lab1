@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 // included for SIGCHLD
 #include <signal.h>
@@ -37,10 +38,19 @@ static void print_cmd(Command *cmd);
 static void print_pgm(Pgm *p);
 void stripwhite(char *);
 
-void child_handler(int sig);
+void signal_handler(int sig);
 
 int main(void)
 {
+
+
+  if(signal(SIGCHLD, signal_handler) < 0){
+     fprintf(stderr, "ERROR: failed to register SIGCHLD handler (%d)\n", errno);
+  }
+  if(signal(SIGINT, signal_handler) < 0){
+     fprintf(stderr, "ERROR: failed to register SIGINT handler (%d)\n", errno);
+  }
+  
   for (;;)
   {
     char *line;
@@ -55,7 +65,7 @@ int main(void)
     strcat(cwd,prompt);
     line = readline(cwd);
 
-    signal(SIGCHLD, child_handler);
+    
 
     // If EOF encountered, exit shell
     if (!line)
@@ -121,7 +131,9 @@ static void run_cmds(Command *cmd_list)
   //child process
   if(pid == 0){
 
-   
+      if(cmd_list->background == 1){
+        setpgid(0,0);
+      }
       execvp(cmd_list->pgm->pgmlist[0], cmd_list->pgm->pgmlist);
     
   }
@@ -133,7 +145,7 @@ static void run_cmds(Command *cmd_list)
   //parent process
   else{
 
-    //if background command
+    //if not background command
     if(cmd_list->background == 0){
 
       //waiting for child
@@ -143,9 +155,9 @@ static void run_cmds(Command *cmd_list)
 
 
       }
-
+      return;
     }
-    
+   
 
   }
 
@@ -228,13 +240,27 @@ void stripwhite(char *string)
 }
 
 
-void child_handler(int sig){
+void signal_handler(int sig){
 
   int pid;
   int status;
 
-  while((pid = waitpid(-1, &status, WNOHANG)) > 0){
-    printf("Child has died with pid: %d\n", pid);
+  printf("signal value: %d\n",sig);
+
+  if(sig == SIGINT){
+    printf("\nlol\n");
+    return;
   }
 
+  if(sig == SIGCHLD){
+    while((pid = waitpid(-1, &status, WNOHANG)) > 0){
+      printf("Child has died with pid: %d\n", pid);
+      
+    }
+    return;
+  }
+  
+  
+
 }
+
