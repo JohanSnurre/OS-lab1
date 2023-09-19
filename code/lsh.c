@@ -23,6 +23,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+
+// included for SIGCHLD
+#include <signal.h>
 
 // The <unistd.h> header is your gateway to the OS's process management facilities.
 #include <unistd.h>
@@ -34,8 +38,20 @@ static void print_cmd(Command *cmd);
 static void print_pgm(Pgm *p);
 void stripwhite(char *);
 
+void signal_handler(int sig);
+
 int main(void)
 {
+
+
+
+  if(signal(SIGCHLD, signal_handler) < 0){
+     fprintf(stderr, "ERROR: failed to register SIGCHLD handler (%d)\n", errno);
+  }
+  if(signal(SIGINT, signal_handler) < 0){
+     fprintf(stderr, "ERROR: failed to register SIGINT handler (%d)\n", errno);
+  }
+  
 
   for (;;)
   {
@@ -50,6 +66,8 @@ int main(void)
     strcat(cwd,login);
     strcat(cwd,prompt);
     line = readline(cwd);
+
+    
 
     // If EOF encountered, exit shell
     if (!line)
@@ -115,10 +133,17 @@ static void run_cmds(Command *cmd_list)
 
   //child process
   if(pid == 0){
+
       if(pgm->next != NULL){
         ExecutePipedCmd(cmd_list,pgm);
       }
     else{
+
+
+      if(cmd_list->background == 1){
+        setpgid(0,0);
+      }
+
       execvp(cmd_list->pgm->pgmlist[0], cmd_list->pgm->pgmlist);
    }
     
@@ -131,14 +156,19 @@ static void run_cmds(Command *cmd_list)
   //parent process
   else{
 
+    //if not background command
+    if(cmd_list->background == 0){
 
-    //waiting for child
-    if(waitpid(pid, &status, 0) > 0){
+      //waiting for child
+      if(waitpid(pid, &status, 0) > 0){
 
-      printf("Child finished");
+        printf("Child finished");
 
 
+      }
+      return;
     }
+   
 
   }
 
@@ -220,6 +250,7 @@ void stripwhite(char *string)
   string[++i] = '\0';
 }
 
+
 //Function to execute Pipeline 
 int ExecutePipedCmd(Command *cmd_list,struct c *pgm){
   pid_t pid;
@@ -268,5 +299,30 @@ int ExecutePipedCmd(Command *cmd_list,struct c *pgm){
       exit(-1);
     }
   }
+
+
+void signal_handler(int sig){
+
+  int pid;
+  int status;
+
+  printf("signal value: %d\n",sig);
+
+  if(sig == SIGINT){
+    printf("\nlol\n");
+    return;
+  }
+
+  if(sig == SIGCHLD){
+    while((pid = waitpid(-1, &status, WNOHANG)) > 0){
+      printf("Child has died with pid: %d\n", pid);
+      
+    }
+    return;
+  }
+  
+  
+
+
 }
 
