@@ -44,6 +44,7 @@ int main(void)
 {
 
 
+
   if(signal(SIGCHLD, signal_handler) < 0){
      fprintf(stderr, "ERROR: failed to register SIGCHLD handler (%d)\n", errno);
   }
@@ -51,6 +52,7 @@ int main(void)
      fprintf(stderr, "ERROR: failed to register SIGINT handler (%d)\n", errno);
   }
   
+
   for (;;)
   {
     char *line;
@@ -127,14 +129,23 @@ static void run_cmds(Command *cmd_list)
 
   int pid = fork();
   int status;
+  struct c *pgm = cmd_list->pgm;
 
   //child process
   if(pid == 0){
 
+      if(pgm->next != NULL){
+        ExecutePipedCmd(cmd_list,pgm);
+      }
+    else{
+
+
       if(cmd_list->background == 1){
         setpgid(0,0);
       }
+
       execvp(cmd_list->pgm->pgmlist[0], cmd_list->pgm->pgmlist);
+   }
     
   }
   //some error
@@ -240,6 +251,56 @@ void stripwhite(char *string)
 }
 
 
+//Function to execute Pipeline 
+int ExecutePipedCmd(Command *cmd_list,struct c *pgm){
+  pid_t pid;
+  int fd[2],ret;
+
+  if(pipe(fd)==-1){
+    perror("Fail on piping");
+    exit(-1);
+  }
+  pid = fork();
+  if(pid==-1){
+    perror("Fail on fork process");
+    exit(-1);
+  }
+  if(pid==0){
+    close(fd[0]);
+    dup2(fd[1],1);
+    close(fd[1]);
+
+    pgm = pgm->next;
+    if(pgm->next !=NULL){
+      //Recursive call of the function
+      ExecutePipedCmd(cmd_list,pgm);
+    }
+    else{
+      //Redirecting standard input 
+      if(cmd->rstdin != NULL){
+        int infd = open(cmd->rstdin,0);
+        dup2(infd,0);
+      }
+      //Executing the command
+      int re = execvp(pgm->pgm_list[0],pgm->pgm_list);
+      if(re == -1){
+        perror("ERROR : fail on executing Command ");
+        exit(-1);
+      }
+    }
+  }
+  if(pid>0){
+    close(fd[1]);
+    dup2(fd[0],0);
+    //Executing the command
+    int re = execvp(pgm->pgm_list[0],pgm->pgm_list);
+    if(re == -1){
+      perror("ERROR : fail on executing Command ");
+      exit(-1);
+    }
+  }
+
+
 void signal_handler(int sig){
 
   int pid;
@@ -261,6 +322,7 @@ void signal_handler(int sig){
   }
   
   
+
 
 }
 
