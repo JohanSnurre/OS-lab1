@@ -36,59 +36,6 @@ void stripwhite(char *);
 
 int main(void)
 {
-  //Function to execute Pipeline 
-  int ExecutePipedCmd(Command *cmd_list,struct c *pgm){
-    pid_t pid;
-    int fd[2],ret;
-
-    if(pipe(fd)==-1){
-      perror("Fail on piping");
-      exit(-1);
-    }
-    pid = fork();
-    if(pid==-1){
-      perror("Fail on fork process");
-      exit(-1);
-    }
-    if(pid==0){
-      close(fd[0]);
-      dup2(fd[1],1);
-      close(fd[1]);
-
-      pgm = pgm->next;
-      if(pgm->next !=NULL){
-        //Recursive call of the function
-        ExecutePipedCmd(cmd_list,pgm);
-      }
-      else{
-        //Redirecting standard input 
-        if(cmd->rstdin != NULL){
-          int infd = open(cmd->rstdin,0);
-          dup2(infd,0);
-        }
-        //Executing the command
-        int re = execvp(pgm->pgm_list[0],pgm->pgm_list);
-        if(re == -1){
-          perror("ERROR : fail on executing Command ");
-          exit(-1);
-        }
-      }
-    }
-    if(pid>0){
-      close(fd[1]);
-      dup2(fd[0],0);
-      //Executing the command
-      int re = execvp(pgm->pgm_list[0],pgm->pgm_list);
-      if(re == -1){
-        perror("ERROR : fail on executing Command ");
-        exit(-1);
-      }
-    }
-  }
-
-
-
-
 
   for (;;)
   {
@@ -272,3 +219,54 @@ void stripwhite(char *string)
 
   string[++i] = '\0';
 }
+
+//Function to execute Pipeline 
+int ExecutePipedCmd(Command *cmd_list,struct c *pgm){
+  pid_t pid;
+  int fd[2],ret;
+
+  if(pipe(fd)==-1){
+    perror("Fail on piping");
+    exit(-1);
+  }
+  pid = fork();
+  if(pid==-1){
+    perror("Fail on fork process");
+    exit(-1);
+  }
+  if(pid==0){
+    close(fd[0]);
+    dup2(fd[1],1);
+    close(fd[1]);
+
+    pgm = pgm->next;
+    if(pgm->next !=NULL){
+      //Recursive call of the function
+      ExecutePipedCmd(cmd_list,pgm);
+    }
+    else{
+      //Redirecting standard input 
+      if(cmd->rstdin != NULL){
+        int infd = open(cmd->rstdin,0);
+        dup2(infd,0);
+      }
+      //Executing the command
+      int re = execvp(pgm->pgm_list[0],pgm->pgm_list);
+      if(re == -1){
+        perror("ERROR : fail on executing Command ");
+        exit(-1);
+      }
+    }
+  }
+  if(pid>0){
+    close(fd[1]);
+    dup2(fd[0],0);
+    //Executing the command
+    int re = execvp(pgm->pgm_list[0],pgm->pgm_list);
+    if(re == -1){
+      perror("ERROR : fail on executing Command ");
+      exit(-1);
+    }
+  }
+}
+
