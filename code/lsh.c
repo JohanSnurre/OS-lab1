@@ -25,6 +25,7 @@
 #include <string.h>
 #include <errno.h>
 
+#include <wait.h>
 //for open() flags
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -41,7 +42,7 @@ static void run_cmds(Command *);
 static void print_cmd(Command *cmd);
 static void print_pgm(Pgm *p);
 void stripwhite(char *);
-
+int ExecutePipedCmd(Command *cmd_list,struct c *pgm);
 void signal_handler(int sig);
 
 int main(void)
@@ -49,12 +50,8 @@ int main(void)
 
 
 
-  if(signal(SIGCHLD, signal_handler) < 0){
-     fprintf(stderr, "ERROR: failed to register SIGCHLD handler (%d)\n", errno);
-  }
-  if(signal(SIGINT, signal_handler) < 0){
-     fprintf(stderr, "ERROR: failed to register SIGINT handler (%d)\n", errno);
-  }
+  signal(SIGCHLD, signal_handler);
+  signal(SIGINT, signal_handler);
   
 
   for (;;)
@@ -273,7 +270,7 @@ void stripwhite(char *string)
 //Function to execute Pipeline 
 int ExecutePipedCmd(Command *cmd_list,struct c *pgm){
   pid_t pid;
-  int fd[2],ret;
+  int fd[2];
 
   if(pipe(fd)==-1){
     perror("Fail on piping");
@@ -318,7 +315,7 @@ int ExecutePipedCmd(Command *cmd_list,struct c *pgm){
       exit(-1);
     }
   }
-
+  exit(EXIT_SUCCESS);
 }
 
 void signal_handler(int sig){
