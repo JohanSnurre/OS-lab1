@@ -133,8 +133,18 @@ static void run_cmds(Command *cmd_list)
 
   //child process
   if(pid == 0){
+    //Redirection of standard output 
+    if(cmd_list->rstdout != NULL){
+      int fd = open(cmd_list->rstdout,O_CREAT|O_RDWR,S_IRWXU);
+      dup2(fd,1);
+    }
+    //Redirection of standard error
+    if(cmd_list->rstderr != NULL){
+      int fd = open(cmd_list->rstderr,O_CREAT|O_RDWR,S_IRWXU);
+      dup2(fd,2);
+    }
 
-      if(pgm->next != NULL){
+    if(pgm->next != NULL){
         ExecutePipedCmd(cmd_list,pgm);
       }
     else{
@@ -255,17 +265,17 @@ void stripwhite(char *string)
 int ExecutePipedCmd(Command *cmd_list,struct c *pgm){
   pid_t pid;
   int fd[2],ret;
-
+  //Checking if the pipe run corrrectly
   if(pipe(fd)==-1){
     perror("Fail on piping");
     exit(-1);
   }
   pid = fork();
-  if(pid==-1){
+  if(pid==-1){ //Checking the fork cases
     perror("Fail on fork process");
     exit(-1);
   }
-  if(pid==0){
+  if(pid==0){//Child process
     close(fd[0]);
     dup2(fd[1],1);
     close(fd[1]);
