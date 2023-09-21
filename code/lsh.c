@@ -25,6 +25,11 @@
 #include <string.h>
 #include <errno.h>
 
+#include <wait.h>
+//for open() flags
+#include <fcntl.h>
+#include <sys/stat.h>
+
 // included for SIGCHLD
 #include <signal.h>
 
@@ -37,7 +42,7 @@ static void run_cmds(Command *);
 static void print_cmd(Command *cmd);
 static void print_pgm(Pgm *p);
 void stripwhite(char *);
-
+int ExecutePipedCmd(Command *cmd_list,struct c *pgm);
 void signal_handler(int sig);
 
 int main(void)
@@ -45,12 +50,8 @@ int main(void)
 
 
 
-  if(signal(SIGCHLD, signal_handler) < 0){
-     fprintf(stderr, "ERROR: failed to register SIGCHLD handler (%d)\n", errno);
-  }
-  if(signal(SIGINT, signal_handler) < 0){
-     fprintf(stderr, "ERROR: failed to register SIGINT handler (%d)\n", errno);
-  }
+  signal(SIGCHLD, signal_handler);
+  signal(SIGINT, signal_handler);
   
 
   for (;;)
@@ -134,18 +135,33 @@ static void run_cmds(Command *cmd_list)
   //child process
   if(pid == 0){
 
-      if(pgm->next != NULL){
-        ExecutePipedCmd(cmd_list,pgm);
-      }
+
+    if(cmd_list->rstderr != NULL){
+      int fd = open(cmd_list->rstderr, O_CREAT|O_RDWR, S_IRWXU);
+      dup2(fd, 2);
+    }
+    if(cmd_list->rstdout != NULL){
+      int fd = open(cmd_list->rstdout, O_CREAT|O_RDWR, S_IRWXU);
+      dup2(fd, 1);
+    }
+    
+    
+    if(pgm->next != NULL){
+      ExecutePipedCmd(cmd_list,pgm);
+    }
     else{
 
+      if(cmd_list->rstdin != NULL){
+        int fd = open(cmd_list->rstdin, O_CREAT|O_RDWR, S_IRWXU);
+        dup2(fd, 0);
+      }
 
       if(cmd_list->background == 1){
         setpgid(0,0);
       }
 
       execvp(cmd_list->pgm->pgmlist[0], cmd_list->pgm->pgmlist);
-   }
+    }
     
   }
   //some error
@@ -166,7 +182,7 @@ static void run_cmds(Command *cmd_list)
 
 
       }
-      return;
+      
     }
    
 
@@ -254,7 +270,7 @@ void stripwhite(char *string)
 //Function to execute Pipeline 
 int ExecutePipedCmd(Command *cmd_list,struct c *pgm){
   pid_t pid;
-  int fd[2],ret;
+  int fd[2];
 
   if(pipe(fd)==-1){
     perror("Fail on piping");
@@ -277,12 +293,12 @@ int ExecutePipedCmd(Command *cmd_list,struct c *pgm){
     }
     else{
       //Redirecting standard input 
-      if(cmd->rstdin != NULL){
-        int infd = open(cmd->rstdin,0);
+      if(cmd_list->rstdin != NULL){
+        int infd = open(cmd_list->rstdin,0);
         dup2(infd,0);
       }
       //Executing the command
-      int re = execvp(pgm->pgm_list[0],pgm->pgm_list);
+      int re = execvp(pgm->pgmlist[0],pgm->pgmlist);
       if(re == -1){
         perror("ERROR : fail on executing Command ");
         exit(-1);
@@ -293,13 +309,14 @@ int ExecutePipedCmd(Command *cmd_list,struct c *pgm){
     close(fd[1]);
     dup2(fd[0],0);
     //Executing the command
-    int re = execvp(pgm->pgm_list[0],pgm->pgm_list);
+    int re = execvp(pgm->pgmlist[0],pgm->pgmlist);
     if(re == -1){
       perror("ERROR : fail on executing Command ");
       exit(-1);
     }
   }
-
+  exit(EXIT_SUCCESS);
+}
 
 void signal_handler(int sig){
 
